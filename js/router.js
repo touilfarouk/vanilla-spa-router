@@ -1,102 +1,80 @@
-// Define routes without duplication - use parameterized routes for flexibility
+// Define routes with support for multiple parameters - all about routes go to about.html
 const routes = {
   404: { html: "/pages/404.html", js: null },
   "#/": { html: "/pages/index.html", js: "/js/index.js" },
-  "#/about/:id?": { html: "/pages/about.html", js: "/js/about.js" }, // :id? makes id optional
+  
+  // All about-related routes point to about.html
+  "#/about": { html: "/pages/about.html", js: "/js/about.js" },
+  "#/about/:id": { html: "/pages/about.html", js: "/js/about.js" },
+  "#/about/:userId/post/:postId": { html: "/pages/about.html", js: "/js/about.js" },
+  "#/about/:category/:item/:action?": { html: "/pages/about.html", js: "/js/about.js" },
+  
+  // Other routes
+  "#/user/:userId/profile/:section?": { html: "/pages/profile.html", js: "/js/profile.js" },
+  "#/category/:categoryId/product/:productId/version/:version?": { 
+    html: "/pages/product.html", 
+    js: "/js/product.js" 
+  },
   "#/lorem": { html: "/pages/lorem.html", js: "/js/lorem.js" },
-  // Add all your 50+ routes here following the same pattern
-  // Use :param? for optional parameters, :param for required ones
+  // Add all your 50+ routes here
 };
 
-// Enhanced route matching that handles optional parameters correctly
+// Enhanced route matching with priority-based matching
 function matchRoute(path) {
   // Try exact match first for static routes
   if (routes[path]) {
     return { route: routes[path], params: {} };
   }
 
-  // Check all routes for pattern matching
-  for (const pattern in routes) {
-    if (pattern === "404") continue;
-    
-    const routeConfig = routes[pattern];
-    
-    // Skip exact matches we already handled
-    if (!pattern.includes(':')) continue;
-    
-    // Convert route pattern to regex
-    const paramNames = [];
-    let regexPattern = pattern
-      .replace(/\//g, '\\/')
-      .replace(/:([^\/]+)\?/g, (_, key) => {
-        paramNames.push(key);
-        return "(?:/([^\/]*))?"; // Optional parameter with preceding slash
-      })
-      .replace(/:([^\/]+)/g, (_, key) => {
-        paramNames.push(key);
-        return "/([^\/]+)"; // Required parameter
-      });
+  // Handle parameterized routes - we need to prioritize more specific patterns
+  const pathParts = path.split('/').filter(part => part !== '' && part !== '#');
+  let bestMatch = null;
+  let bestMatchScore = -1;
 
-    const regex = new RegExp('^' + regexPattern + '$');
-    const match = path.match(regex);
-
-    if (match) {
-      const params = {};
-      paramNames.forEach((name, i) => {
-        if (match[i + 1] !== undefined) {
-          params[name] = match[i + 1];
-        }
-      });
-      return { route: routeConfig, params };
-    }
-  }
-
-  return { route: routes[404], params: {} };
-}
-
-// Alternative: More robust matching using path analysis
-function matchRouteOptimized(path) {
-  // Static route exact match
-  if (routes[path]) {
-    return { route: routes[path], params: {} };
-  }
-
-  // Handle parameterized routes
-  const pathParts = path.split('/').filter(part => part !== '');
-  
   for (const pattern in routes) {
     if (pattern === "404" || !pattern.includes(':')) continue;
     
-    const patternParts = pattern.split('/').filter(part => part !== '');
+    const patternParts = pattern.split('/').filter(part => part !== '' && part !== '#');
     const routeConfig = routes[pattern];
     const params = {};
     let isMatch = true;
+    let matchScore = 0;
 
     // Check if path matches pattern structure
     for (let i = 0; i < Math.max(patternParts.length, pathParts.length); i++) {
       const patternPart = patternParts[i];
       const pathPart = pathParts[i];
 
+      if (!patternPart && !pathPart) {
+        continue;
+      }
+
       if (patternPart && patternPart.startsWith(':')) {
         // This is a parameter
         const paramName = patternPart.replace(':', '').replace('?', '');
         if (pathPart !== undefined) {
           params[paramName] = pathPart;
+          matchScore++; // Score higher for matching parameters
         } else if (!patternPart.endsWith('?')) {
-          // Required parameter is missing
           isMatch = false;
           break;
         }
       } else if (patternPart !== pathPart) {
-        // Static parts don't match
         isMatch = false;
         break;
+      } else {
+        matchScore += 2; // Score even higher for exact static part matches
       }
     }
 
-    if (isMatch) {
-      return { route: routeConfig, params };
+    if (isMatch && matchScore > bestMatchScore) {
+      bestMatch = { route: routeConfig, params };
+      bestMatchScore = matchScore;
     }
+  }
+
+  if (bestMatch) {
+    return bestMatch;
   }
 
   return { route: routes[404], params: {} };
@@ -105,10 +83,16 @@ function matchRouteOptimized(path) {
 // Router handler
 const handleLocation = async () => {
   const path = window.location.hash || "#/";
-  const { route, params } = matchRouteOptimized(path);
+  const { route, params } = matchRoute(path);
+
+  console.log("Navigating to:", path, "Params:", params); // Debug info
 
   try {
-    const html = await fetch(route.html).then(res => res.text());
+    const html = await fetch(route.html).then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${route.html}`);
+      return res.text();
+    });
+    
     document.getElementById("main-page").innerHTML = html;
     
     // Clean up previous scripts
@@ -118,15 +102,36 @@ const handleLocation = async () => {
     
     if (route.js) {
       import(route.js + `?v=${Date.now()}`)
-        .then(module => { if (module.init) module.init(params); })
+        .then(module => { 
+          if (module.init) module.init(params);
+          else if (typeof module.default === 'function') module.default(params);
+        })
         .catch(err => console.warn("Script load failed:", err));
     }
   } catch (error) {
     console.error("Error loading route:", error);
     document.getElementById("main-page").innerHTML = `
-      <div class="error">Error Loading Page: ${error.message}</div>
+      <div class="error">
+        <h2>Error Loading Page</h2>
+        <p>${error.message}</p>
+        <p>Path: ${path}</p>
+      </div>
     `;
   }
+};
+
+// Utility function for programmatic navigation with parameters
+window.navigateTo = (path, params = {}) => {
+  let url = path;
+  
+  // Replace parameters in the path
+  if (params && Object.keys(params).length > 0) {
+    for (const [key, value] of Object.entries(params)) {
+      url = url.replace(`:${key}`, value).replace(`:${key}?`, value);
+    }
+  }
+  
+  window.location.hash = url;
 };
 
 // Event listeners
