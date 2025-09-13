@@ -1,83 +1,69 @@
-// Define routes with support for multiple parameters - all about routes go to about.html
+// router.js - Universal Dynamic Router (PURE)
 const routes = {
   404: { html: "/pages/404.html", js: null },
   "#/": { html: "/pages/index.html", js: "/js/index.js" },
-  
-  // All about-related routes point to about.html
   "#/about": { html: "/pages/about.html", js: "/js/about.js" },
-  "#/about/:id": { html: "/pages/about.html", js: "/js/about.js" },
-  "#/about/:userId/post/:postId": { html: "/pages/about.html", js: "/js/about.js" },
-  "#/about/:category/:item/:action?": { html: "/pages/about.html", js: "/js/about.js" },
-  
-  // Other routes
-  "#/user/:userId/profile/:section?": { html: "/pages/profile.html", js: "/js/profile.js" },
-  "#/category/:categoryId/product/:productId/version/:version?": { 
-    html: "/pages/product.html", 
-    js: "/js/product.js" 
-  },
   "#/lorem": { html: "/pages/lorem.html", js: "/js/lorem.js" },
-  // Add all your 50+ routes here
+  // Add all your 50+ base routes here
 };
 
-// Enhanced route matching with priority-based matching
+// Dynamic route matching - handles any number of parameters automatically
 function matchRoute(path) {
   // Try exact match first for static routes
   if (routes[path]) {
     return { route: routes[path], params: {} };
   }
 
-  // Handle parameterized routes - we need to prioritize more specific patterns
-  const pathParts = path.split('/').filter(part => part !== '' && part !== '#');
-  let bestMatch = null;
-  let bestMatchScore = -1;
-
-  for (const pattern in routes) {
-    if (pattern === "404" || !pattern.includes(':')) continue;
-    
-    const patternParts = pattern.split('/').filter(part => part !== '' && part !== '#');
-    const routeConfig = routes[pattern];
-    const params = {};
-    let isMatch = true;
-    let matchScore = 0;
-
-    // Check if path matches pattern structure
-    for (let i = 0; i < Math.max(patternParts.length, pathParts.length); i++) {
-      const patternPart = patternParts[i];
-      const pathPart = pathParts[i];
-
-      if (!patternPart && !pathPart) {
-        continue;
-      }
-
-      if (patternPart && patternPart.startsWith(':')) {
-        // This is a parameter
-        const paramName = patternPart.replace(':', '').replace('?', '');
-        if (pathPart !== undefined) {
-          params[paramName] = pathPart;
-          matchScore++; // Score higher for matching parameters
-        } else if (!patternPart.endsWith('?')) {
-          isMatch = false;
-          break;
-        }
-      } else if (patternPart !== pathPart) {
-        isMatch = false;
-        break;
-      } else {
-        matchScore += 2; // Score even higher for exact static part matches
-      }
-    }
-
-    if (isMatch && matchScore > bestMatchScore) {
-      bestMatch = { route: routeConfig, params };
-      bestMatchScore = matchScore;
-    }
-  }
-
-  if (bestMatch) {
-    return bestMatch;
+  // Extract base path (remove parameters)
+  const basePath = extractBasePath(path);
+  
+  // Check if base path exists in routes
+  if (routes[basePath]) {
+    const routeConfig = routes[basePath];
+    const params = extractDynamicParams(path, basePath);
+    return { route: routeConfig, params };
   }
 
   return { route: routes[404], params: {} };
+}
+
+// Extract base path from any URL
+function extractBasePath(path) {
+  const parts = path.split('/').filter(part => part !== '' && part !== '#');
+  return parts.length === 0 ? "#/" : "#/" + parts[0];
+}
+
+// Extract all parameters dynamically from any path
+function extractDynamicParams(fullPath, basePath) {
+  const params = {};
+  const fullParts = fullPath.split('/').filter(part => part !== '' && part !== '#');
+  const baseParts = basePath.split('/').filter(part => part !== '' && part !== '#');
+  
+  if (fullParts.length <= baseParts.length) return params;
+  
+  // Extract all segments after base path as parameters
+  for (let i = baseParts.length; i < fullParts.length; i++) {
+    const paramIndex = i - baseParts.length;
+    const paramName = `param${paramIndex + 1}`;
+    const paramValue = fullParts[i];
+    
+    // Auto-detect parameter type
+    params[paramName] = detectParamType(paramValue);
+  }
+  
+  return params;
+}
+
+// Automatically detect and convert parameter types
+function detectParamType(value) {
+  if (!value) return value;
+  if (/^-?\d+$/.test(value)) return parseInt(value, 10);
+  if (/^-?\d+\.\d+$/.test(value)) return parseFloat(value);
+  if (value.toLowerCase() === 'true') return true;
+  if (value.toLowerCase() === 'false') return false;
+  if (value === 'null') return null;
+  if (value === 'undefined') return undefined;
+  return decodeURIComponent(value);
 }
 
 // Router handler
@@ -85,7 +71,7 @@ const handleLocation = async () => {
   const path = window.location.hash || "#/";
   const { route, params } = matchRoute(path);
 
-  console.log("Navigating to:", path, "Params:", params); // Debug info
+  console.log("🌐 Navigating to:", path, "Parameters:", params);
 
   try {
     const html = await fetch(route.html).then(res => {
@@ -94,10 +80,9 @@ const handleLocation = async () => {
     });
     
     document.getElementById("main-page").innerHTML = html;
-    
-    // Clean up previous scripts
     document.querySelectorAll("script[data-route]").forEach(el => el.remove());
     
+    // PURE UNIVERSAL ROUTER - No route-specific logic here!
     window.routeParams = params;
     
     if (route.js) {
@@ -120,20 +105,24 @@ const handleLocation = async () => {
   }
 };
 
-// Utility function for programmatic navigation with parameters
+// Utility function for programmatic navigation
 window.navigateTo = (path, params = {}) => {
   let url = path;
-  
-  // Replace parameters in the path
   if (params && Object.keys(params).length > 0) {
-    for (const [key, value] of Object.entries(params)) {
-      url = url.replace(`:${key}`, value).replace(`:${key}?`, value);
-    }
+    const queryString = Object.entries(params)
+      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+      .join('&');
+    url += '?' + queryString;
   }
-  
   window.location.hash = url;
 };
 
 // Event listeners
 window.addEventListener("hashchange", handleLocation);
 document.addEventListener("DOMContentLoaded", handleLocation);
+
+// Make router utilities globally available
+window.router = {
+  navigateTo,
+  getCurrentParams: () => window.routeParams || {}
+};

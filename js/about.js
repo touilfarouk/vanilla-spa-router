@@ -1,35 +1,11 @@
-// /js/about.js - Comprehensive version
+// /js/about.js
 function init(params = {}) {
-    const userId = params.userId || params.id;
-    const postId = params.postId;
+    const values = Object.values(params);
+    const userEl = document.getElementById("user-id");
+    const postEl = document.getElementById("post-id");
     
-    console.log("About page initialized with:", params);
-    
-    // Update user ID display
-    const userIdEl = document.getElementById("user-id");
-    if (userIdEl) {
-        userIdEl.textContent = userId ? `User ID: ${userId}` : "No user selected";
-    }
-    
-    // Update post ID display if element exists
-    const postIdEl = document.getElementById("post-id");
-    if (postIdEl) {
-        if (postId) {
-            postIdEl.textContent = `Post ID: ${postId}`;
-            postIdEl.style.display = 'block';
-        } else {
-            postIdEl.style.display = 'none';
-        }
-    }
-    
-    // Create post info if it doesn't exist but we have postId
-    if (postId && !postIdEl) {
-        const postInfo = document.createElement('div');
-        postInfo.id = 'post-info';
-        postInfo.innerHTML = `<h3>Post Details</h3><p>Post ID: ${postId}</p>`;
-        document.body.appendChild(postInfo);
-    }
+    userEl && (userEl.textContent = values[0] ? `ID: ${values[0]}` : "No user selected");
+    postEl && (postEl.textContent = `Post ID: ${values[2] || ''}`, postEl.style.display = values[2] ? 'block' : 'none');
 }
 
-// Export for the router
 export { init };
