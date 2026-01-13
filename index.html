@@ -3,25 +3,25 @@
     <head>
         <title>Vanilla SPA Router</title>
         <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        
+        <!-- Quasar and Material Icons -->
+        <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/quasar@2.18.6/dist/quasar.prod.css" rel="stylesheet">
+        
+        <!-- Your existing styles -->
         <link rel="stylesheet" href="css/styles.css" />
         <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss@0.9.0">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss@0.9.0">
     </head>
 
     <body>
-        <div id="root">
-            <nav id="main-nav" class="sidebar">
-                <a href="#/">Home</a>
-                <a href="#/about">About</a>
-                <a href="#/lorem">Lorem</a>
-            </nav>
-            <div id="main-page">
+        <div id="q-app"></div>
 
-
-
-            </div>
-        </div>
-
+        <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/quasar@2.18.6/dist/quasar.umd.prod.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/quasar@2.18.6/dist/icon-set/svg-material-icons.umd.prod.js"></script>
+        <script src="navigation.js"></script>
         <script src="js/router.js"></script>
     </body>
 </html>

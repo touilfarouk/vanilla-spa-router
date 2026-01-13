@@ -2,25 +2,29 @@
 const routes = {
   404: { html: "/pages/404.html", js: null },
   "#/": { html: "/pages/index.html", js: "/js/index.js" },
+  "#/services": { html: "/pages/services.html", js: "/js/services.js" },
+  "#/products": { html: "/pages/products.html", js: "/js/products.js" },
   "#/about": { html: "/pages/about.html", js: "/js/about.js" },
+  "#/contact": { html: "/pages/contact.html", js: "/js/contact.js" },
   "#/lorem": { html: "/pages/lorem.html", js: "/js/lorem.js" },
   // Add all your 50+ base routes here
 };
 
 // Dynamic route matching - handles any number of parameters automatically
 function matchRoute(path) {
+  const cleanPath = (path || "#/").split("?")[0] || "#/";
   // Try exact match first for static routes
-  if (routes[path]) {
-    return { route: routes[path], params: {} };
+  if (routes[cleanPath]) {
+    return { route: routes[cleanPath], params: {} };
   }
 
   // Extract base path (remove parameters)
-  const basePath = extractBasePath(path);
+  const basePath = extractBasePath(cleanPath);
   
   // Check if base path exists in routes
   if (routes[basePath]) {
     const routeConfig = routes[basePath];
-    const params = extractDynamicParams(path, basePath);
+    const params = extractDynamicParams(cleanPath, basePath);
     return { route: routeConfig, params };
   }
 
@@ -68,10 +72,30 @@ function detectParamType(value) {
 
 // Router handler
 const handleLocation = async () => {
-  const path = window.location.hash || "#/";
-  const { route, params } = matchRoute(path);
+  const mainPageEl = document.getElementById("main-page");
+  if (!mainPageEl) {
+    requestAnimationFrame(handleLocation);
+    return;
+  }
 
-  console.log("🌐 Navigating to:", path, "Parameters:", params);
+  const rawHash = window.location.hash || "#/";
+  const [path, queryString = ""] = rawHash.split("?");
+  const { route, params } = matchRoute(path || "#/");
+
+  const query = {};
+  if (queryString) {
+    const pairs = queryString.split("&").filter(Boolean);
+    for (const pair of pairs) {
+      const [k, v = ""] = pair.split("=");
+      if (!k) continue;
+      query[decodeURIComponent(k)] = detectParamType(decodeURIComponent(v));
+    }
+  }
+
+  // Keep router params behavior stable: store query separately
+  window.routeQuery = query;
+
+  console.log("🌐 Navigating to:", rawHash, "Parameters:", params);
 
   try {
     const html = await fetch(route.html).then(res => {
@@ -79,7 +103,7 @@ const handleLocation = async () => {
       return res.text();
     });
     
-    document.getElementById("main-page").innerHTML = html;
+    mainPageEl.innerHTML = html;
     document.querySelectorAll("script[data-route]").forEach(el => el.remove());
     
     // PURE UNIVERSAL ROUTER - No route-specific logic here!
@@ -95,7 +119,7 @@ const handleLocation = async () => {
     }
   } catch (error) {
     console.error("Error loading route:", error);
-    document.getElementById("main-page").innerHTML = `
+    mainPageEl.innerHTML = `
       <div class="error">
         <h2>Error Loading Page</h2>
         <p>${error.message}</p>
@@ -124,5 +148,6 @@ document.addEventListener("DOMContentLoaded", handleLocation);
 // Make router utilities globally available
 window.router = {
   navigateTo,
-  getCurrentParams: () => window.routeParams || {}
+  getCurrentParams: () => window.routeParams || {},
+  getCurrentQuery: () => window.routeQuery || {}
 };
